@@ -1,6 +1,0 @@
-name = "ecommerce-api"
-main = "index.mjs"
-compatibility_date = "2025-01-01"
-
-[vars]
-PROJECT_ID = "e-commerce-743a1"
