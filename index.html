@@ -10,8 +10,11 @@
   <header class="nav">
     <h1 class="logo">Shop<span>Ease</span></h1>
     <input id="search" class="search" placeholder="Search products...">
-    <a href="admin.html" class="nav-link">Admin</a>
-    <button id="cartBtn" class="cart-btn">🛒 Cart (<span id="cartCount">0</span>)</button>
+    <a href="orders.html" class="nav-link">My Orders</a>
+    <span id="who" style="color:#fff"></span>
+    <a href="admin.html" class="nav-link" id="adminLink" style="display:none">Admin</a>
+    <button class="cart-btn" id="cartBtn">🛒 Cart (<span id="cartCount">0</span>)</button>
+    <button class="cart-btn" onclick="logout()">Logout</button>
   </header>
 
   <nav class="cats" id="cats"></nav>
@@ -31,6 +34,8 @@
 
   <script src="js/config.js"></script>
   <script src="js/firestore.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/mailer.js"></script>
   <script src="js/shop.js"></script>
 </body>
 </html>

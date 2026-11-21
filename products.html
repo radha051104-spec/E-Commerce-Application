@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ShopEase - Inventory</title>
+  <link rel="stylesheet" href="css/extra.css">
+</head>
+<body>
+<nav class="top"><b>ShopEase Admin</b>
+  <a href="admin.html">Dashboard</a><a href="products.html">Products</a><a href="customers.html">Customers</a><a href="reports.html">Reports</a><a href="index.html">Shop</a>
+  <span id="who"></span><button type="button" onclick="logout()">Logout</button></nav>
+<main class="wrap">
+  <div class="box">
+    <h2>Add item</h2>
+    <div class="row">
+      <select id="a_cat"></select>
+      <input id="a_title" placeholder="Title"><input id="a_des" placeholder="Description">
+      <input id="a_qty" type="number" min="0" placeholder="Qty"><input id="a_price" type="number" min="1" placeholder="Price">
+      <button id="add" type="button">Add item</button>
+    </div>
+  </div>
+  <div class="box">
+    <h2>Inventory</h2>
+    <div class="row">
+      <select id="fCat"></select>
+      <input id="fQ" placeholder="Search by ID or title">
+    </div>
+    <p id="msg" class="msg"></p>
+    <table><tr><th>ID</th><th>Category</th><th>Title</th><th>Description</th><th>Qty</th><th>Price</th><th>Status</th><th>Actions</th></tr><tbody id="rows"></tbody></table>
+    <div class="pager" id="pager"></div>
+  </div>
+</main>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="js/api.js"></script>
+<script src="js/auth.js"></script>
+<script>
+  var F = { cat: 'cat_id', title: 'title', des: 'des', qty: 'qty', price: 'price', status: 'status' };  // field names in Firestore products
+  var PAGE_SIZE = 5, esc = API.esc, cats = [], items = [], page = 1;
+  function say(t, ok) { $('#msg').attr('class', 'msg ' + (ok ? 'ok' : 'err')).text(t); }
+  function catOptions(sel, withAll) {
+    return (withAll ? '<option value="">All categories</option>' : '') + cats.map(function (c) {
+      return '<option value="' + c._id + '"' + (c._id === sel ? ' selected' : '') + '>' + esc(c.name) + '</option>';
+    }).join('');
+  }
+  function filtered() {
+    var cat = $('#fCat').val(), q = $('#fQ').val().trim().toLowerCase();
+    return items.filter(function (i) {
+      return (!cat || i[F.cat] === cat) && (!q || (i._id + ' ' + i[F.title]).toLowerCase().indexOf(q) > -1);
+    }).sort(function (a, b) { return a._id.localeCompare(b._id); });
+  }
+  function draw() {
+    var list = filtered(), pages = Math.max(1, Math.ceil(list.length / PAGE_SIZE));
+    if (page > pages) page = pages;
+    var slice = list.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+    $('#rows').html(slice.map(function (i) {
+      var st = i[F.status] || 'active';
+      return '<tr data-id="' + i._id + '"><td>' + i._id + '</td>' +
+        '<td><select class="c-cat">' + catOptions(i[F.cat], false) + '</select></td>' +
+        '<td><input class="c-title" value="' + esc(i[F.title]) + '"></td>' +
+        '<td><input class="c-des" value="' + esc(i[F.des]) + '"></td>' +
+        '<td><input class="c-qty" type="number" min="0" value="' + (i[F.qty] || 0) + '"></td>' +
+        '<td><input class="c-price" type="number" min="1" value="' + (i[F.price] || 0) + '"></td>' +
+        '<td><span class="tag ' + st + '">' + st + '</span></td>' +
+        '<td><button class="save" type="button">Save</button>' +
+        '<button class="tog gray" type="button">' + (st === 'active' ? 'Deactivate' : 'Activate') + '</button>' +
+        '<button class="del danger" type="button">Delete</button></td></tr>';
+    }).join('') || '<tr><td colspan="8">No items found.</td></tr>');
+
+    var h = '<button ' + (page === 1 ? 'disabled' : '') + ' id="prev" type="button">Prev</button>';
+    for (var p = 1; p <= pages; p++) h += '<button class="pg' + (p === page ? ' on' : '') + '" data-p="' + p + '" type="button">' + p + '</button>';
+    h += '<button ' + (page === pages ? 'disabled' : '') + ' id="next" type="button">Next</button> <span>Page ' + page + ' of ' + pages + ' (' + list.length + ' items)</span>';
+    $('#pager').html(h);
+  }
+  function find(id) { return items.filter(function (i) { return i._id === id; })[0]; }
+
+  async function load() {
+    try {
+      cats = await API.getAll('categories'); items = await API.getAll('products');
+      $('#fCat').html(catOptions('', true)); $('#a_cat').html(catOptions('', false)); draw();
+    } catch (e) { say('Could not load data. Check the Firestore rules.'); }
+  }
+
+  $('#fCat, #fQ').on('input change', function () { page = 1; draw(); });
+  $('#pager').on('click', '#prev', function () { page--; draw(); })
+             .on('click', '#next', function () { page++; draw(); })
+             .on('click', '.pg', function () { page = Number($(this).data('p')); draw(); });
+
+  $('#add').on('click', async function () {
+    var title = $('#a_title').val().trim(), des = $('#a_des').val().trim(), qty = Number($('#a_qty').val()), price = Number($('#a_price').val());
+    if (!title) return say('Enter the title.');
+    if (!Number.isInteger(qty) || qty < 0) return say('Quantity must be a whole number, 0 or more.');
+    if (!(price > 0)) return say('Price must be more than 0.');
+    try {
+      var id = await API.nextId('products', 'PROD'), o = { id: id };
+      o[F.cat] = $('#a_cat').val(); o[F.title] = title; o[F.des] = des; o[F.qty] = qty; o[F.price] = price; o[F.status] = 'active';
+      await API.save('products', id, o); say('Item ' + id + ' added.', true);
+      $('#a_title,#a_des,#a_qty,#a_price').val(''); load();
+    } catch (e) { say('Could not add the item.'); }
+  });
+
+  $('#rows').on('click', '.save', async function () {
+    var $r = $(this).closest('tr'), id = $r.data('id');
+    var title = $r.find('.c-title').val().trim(), qty = Number($r.find('.c-qty').val()), price = Number($r.find('.c-price').val());
+    if (!title) return say('Title cannot be empty.');
+    if (!Number.isInteger(qty) || qty < 0) return say('Quantity must be a whole number, 0 or more.');
+    if (!(price > 0)) return say('Price must be more than 0.');
+    var o = {}; o[F.cat] = $r.find('.c-cat').val(); o[F.title] = title; o[F.des] = $r.find('.c-des').val().trim(); o[F.qty] = qty; o[F.price] = price;
+    try { await API.update('products', id, o); $.extend(find(id), o); say(id + ' updated.', true); }
+    catch (e) { say('Could not update.'); }
+  });
+  $('#rows').on('click', '.tog', async function () {
+    var id = $(this).closest('tr').data('id'), it = find(id), s = (it[F.status] || 'active') === 'active' ? 'inactive' : 'active', o = {};
+    o[F.status] = s;
+    try { await API.update('products', id, o); it[F.status] = s; draw(); say(id + ' is now ' + s + '.', true); }
+    catch (e) { say('Could not change the status.'); }
+  });
+  $('#rows').on('click', '.del', async function () {
+    var id = $(this).closest('tr').data('id');
+    if (!confirm('Delete item ' + id + '? OK = Delete, Cancel = Keep.')) return;
+    try { await API.remove('products', id); items = items.filter(function (i) { return i._id !== id; }); draw(); say(id + ' deleted.', true); }
+    catch (e) { say('Could not delete.'); }
+  });
+
+  load();
+</script>
+</body>
+</html>

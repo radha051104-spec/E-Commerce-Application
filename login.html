@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ShopEase - Sign In</title>
+  <style>
+    body{font-family:'Segoe UI',Arial,sans-serif;background:#f4f6f8;display:flex;justify-content:center;padding:40px 14px;margin:0}
+    .card{background:#fff;width:100%;max-width:380px;border-radius:14px;padding:24px;box-shadow:0 4px 18px rgba(0,0,0,.12)}
+    h1{margin:0 0 4px;color:#1b1f3b}h1 span{color:#e74c3c}
+    .tabs{display:flex;gap:6px;margin:16px 0}
+    .tabs button{flex:1;padding:9px;border:none;border-radius:8px;background:#e5e8ec;cursor:pointer;font-size:14px}
+    .tabs button.on{background:#1b1f3b;color:#fff}
+    input{width:100%;box-sizing:border-box;padding:10px;margin:6px 0;border:1px solid #ccd2d8;border-radius:8px;font-size:14px}
+    .go{width:100%;padding:11px;margin-top:8px;border:none;border-radius:8px;background:#e74c3c;color:#fff;font-size:15px;cursor:pointer}
+    .go:hover{background:#c0392b}
+    .link{background:none;border:none;color:#1b1f3b;text-decoration:underline;cursor:pointer;margin-top:10px;font-size:13px;padding:0}
+    #msg{min-height:20px;font-size:14px;margin-top:10px}.err{color:#c0392b}.ok{color:#1e8449}
+    .panel{display:none}.panel.show{display:block}
+  </style>
+</head>
+<body>
+<div class="card">
+  <h1>Shop<span>Ease</span></h1>
+  <div class="tabs"><button id="tIn" class="on" type="button">Sign In</button><button id="tUp" type="button">Sign Up</button></div>
+
+  <div id="pIn" class="panel show">
+    <input id="i_email" type="email" placeholder="Email">
+    <input id="i_pw" type="password" placeholder="Password">
+    <button class="go" id="bIn" type="button">Sign In</button>
+    <button class="link" id="toForgot" type="button">Forgot password?</button>
+  </div>
+
+  <div id="pUp" class="panel">
+    <input id="u_name" placeholder="Full name">
+    <input id="u_mob" placeholder="Mobile (10 digits)" maxlength="10">
+    <input id="u_email" type="email" placeholder="Email">
+    <input id="u_pw" type="password" placeholder="Password (6+ chars, letter and number)">
+    <button class="go" id="bUp" type="button">Create account</button>
+  </div>
+
+  <div id="pFg" class="panel">
+    <input id="f_email" type="email" placeholder="Registered email">
+    <input id="f_mob" placeholder="Registered mobile (10 digits)" maxlength="10">
+    <input id="f_pw" type="password" placeholder="New password">
+    <button class="go" id="bFg" type="button">Change password</button>
+    <button class="link" id="toIn" type="button">Back to sign in</button>
+  </div>
+
+  <div id="msg"></div>
+</div>
+
+<script src="js/auth.js"></script>
+<script>
+  function $(id) { return document.getElementById(id); }
+  function say(t, ok) { $('msg').className = ok ? 'ok' : 'err'; $('msg').textContent = t; }
+  function show(which) {
+    ['pIn', 'pUp', 'pFg'].forEach(function (p) { $(p).className = 'panel' + (p === which ? ' show' : ''); });
+    $('tIn').className = which === 'pUp' ? '' : 'on'; $('tUp').className = which === 'pUp' ? 'on' : '';
+    say('');
+  }
+  $('tIn').onclick = $('toIn').onclick = function () { show('pIn'); };
+  $('tUp').onclick = function () { show('pUp'); };
+  $('toForgot').onclick = function () { show('pFg'); };
+
+  $('bIn').onclick = async function () {
+    say('Signing in...', true);
+    var r = await Auth.signIn($('i_email').value, $('i_pw').value);
+    if (!r.ok) say(r.msg);
+  };
+  $('bUp').onclick = async function () {
+    say('Creating account...', true);
+    var r = await Auth.signUp($('u_name').value, $('u_mob').value, $('u_email').value, $('u_pw').value);
+    if (!r.ok) say(r.msg);
+  };
+  $('bFg').onclick = async function () {
+    var r = await Auth.reset($('f_email').value, $('f_mob').value, $('f_pw').value);
+    if (r.ok) { show('pIn'); say(r.msg, true); } else say(r.msg);
+  };
+  ['i_pw', 'u_pw', 'f_pw'].forEach(function (id) {
+    $(id).addEventListener('keydown', function (e) { if (e.key === 'Enter') $({ i_pw: 'bIn', u_pw: 'bUp', f_pw: 'bFg' }[id]).click(); });
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ShopEase - My Orders</title>
+  <link rel="stylesheet" href="css/extra.css">
+</head>
+<body>
+<nav class="top"><b>ShopEase</b><a href="index.html">Shop</a><a href="orders.html">My Orders</a>
+  <span id="who"></span><button type="button" onclick="logout()">Logout</button></nav>
+<main class="wrap">
+  <div class="box">
+    <h2>My order history</h2>
+    <p id="msg" class="msg"></p>
+    <table><tr><th>Order</th><th>Date</th><th>Payment</th><th>Total</th><th>Bill</th></tr><tbody id="rows"></tbody></table>
+  </div>
+</main>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="js/api.js"></script>
+<script src="js/auth.js"></script>
+<script>
+  var esc = API.esc, mine = [];
+  var money = function (n) { return '\u20B9' + Number(n).toLocaleString('en-IN'); };
+
+  function draw() {
+    $('#rows').html(mine.map(function (o) {
+      var bill = '<table><tr><th>Item</th><th>Qty</th><th>Price</th><th>Amount</th></tr>' + o.items.map(function (i) {
+        return '<tr><td>' + esc(i.title || i.pid) + '</td><td>' + i.qty + '</td><td>' + money(i.price) + '</td><td>' + money(i.qty * i.price) + '</td></tr>';
+      }).join('') + '<tr class="foot"><td colspan="3">Total (' + o.payment + ')</td><td>' + money(o.total) + '</td></tr></table>';
+      return '<tr><td>' + esc(o.id) + '</td><td>' + esc(o.date) + '</td><td>' + o.payment + '</td><td>' + money(o.total) + '</td>' +
+             '<td><button class="view gray" type="button">View bill</button></td></tr>' +
+             '<tr class="detail" style="display:none"><td colspan="5">' + bill + '</td></tr>';
+    }).join('') || '<tr><td colspan="5">You have no orders yet.</td></tr>');
+  }
+  $('#rows').on('click', '.view', function () { $(this).closest('tr').next('.detail').toggle(); });
+
+  (async function () {
+    try {
+      var raw = await API.getAll('orders');
+      mine = raw.map(API.order).filter(function (o) { return o.customer === SESSION.uid; })
+                .sort(function (a, b) { return b.date.localeCompare(a.date); });
+      draw();
+    } catch (e) { $('#msg').attr('class', 'msg err').text('Could not load your orders.'); }
+  })();
+</script>
+</body>
+</html>

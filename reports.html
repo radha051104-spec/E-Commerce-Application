@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ShopEase - Reports</title>
+  <link rel="stylesheet" href="css/extra.css">
+</head>
+<body>
+<nav class="top"><b>ShopEase Admin</b>
+  <a href="admin.html">Dashboard</a><a href="products.html">Products</a><a href="customers.html">Customers</a><a href="reports.html">Reports</a><a href="index.html">Shop</a>
+  <span id="who"></span><button type="button" onclick="logout()">Logout</button></nav>
+<main class="wrap">
+  <div class="box noprint">
+    <h2>Reports</h2>
+    <div class="row">
+      <select id="type">
+        <optgroup label="1. Customer reports">
+          <option value="c_all">All customers (all columns)</option>
+          <option value="c_top">Top 10 customers (from - to date)</option>
+          <option value="c_cash">Cash purchase report (from - to date)</option>
+          <option value="c_credit">Credit purchase report (from - to date)</option>
+        </optgroup>
+        <optgroup label="2. Inventory reports">
+          <option value="i_all">Current stock: all</option>
+          <option value="i_cat">Current stock: category wise</option>
+          <option value="i_high">High stock (more than 100 units)</option>
+          <option value="i_low">Low stock (less than 15 units)</option>
+        </optgroup>
+        <optgroup label="3. Sales reports (from - to date)">
+          <option value="s_all">All sales</option>
+          <option value="s_cat">Category wise</option>
+          <option value="s_cash">Cash wise</option>
+          <option value="s_credit">Credit wise</option>
+          <option value="s_top">Top 10 selling items</option>
+          <option value="s_bottom">Bottom 10 selling items</option>
+        </optgroup>
+      </select>
+      From <input id="from" type="date"> To <input id="to" type="date">
+      <button id="run" type="button">Show report</button>
+      <button id="print" class="gray" type="button">Print</button>
+    </div>
+    <p id="msg" class="msg"></p>
+  </div>
+  <div class="box"><h3 id="title">Choose a report</h3><div id="out"></div></div>
+</main>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="js/api.js"></script>
+<script src="js/auth.js"></script>
+<script>
+  var esc = API.esc;
+  var money = function (n) { return '\u20B9' + Number(n).toLocaleString('en-IN'); };
+
+  function render(cols, rows, foot) {
+    var h = '<table><tr>' + cols.map(function (c) { return '<th>' + c + '</th>'; }).join('') + '</tr>';
+    h += rows.length
+      ? rows.map(function (r) { return '<tr>' + r.map(function (v) { return '<td>' + esc(v) + '</td>'; }).join('') + '</tr>'; }).join('')
+      : '<tr><td colspan="' + cols.length + '">No data found for this report.</td></tr>';
+    if (foot) h += '<tr class="foot"><td colspan="' + cols.length + '">' + esc(foot) + '</td></tr>';
+    $('#out').html(h + '</table>');
+  }
+
+  function group(list, keyFn) {
+    var m = {};
+    list.forEach(function (x) { var k = keyFn(x); (m[k] = m[k] || []).push(x); });
+    return m;
+  }
+
+  async function run() {
+    var type = $('#type').val(), from = $('#from').val(), to = $('#to').val();
+    if (from && to && from > to) { $('#msg').attr('class', 'msg err').text('From date must be before To date.'); return; }
+    $('#msg').attr('class', 'msg').text('Loading...');
+    try {
+      var all = await Promise.all([API.getAll('categories'), API.getAll('products'), API.getAll('Customers'), API.getAll('orders')]);
+      var cats = all[0], prods = all[1], custs = all[2].filter(function (c) { return c.role !== 'admin'; });
+      var orders = all[3].map(API.order).filter(function (o) { return (!from || o.date >= from) && (!to || o.date <= to); });
+
+      var catName = function (id) { var c = cats.filter(function (x) { return x._id === id; })[0]; return c ? c.name : (id || '-'); };
+      var custName = function (id) { var c = custs.filter(function (x) { return x._id === id; })[0]; return c ? c.name : (id || '-'); };
+      var prodCat = function (id) { var p = prods.filter(function (x) { return x._id === id; })[0]; return p ? p.cat_id : ''; };
+      var lines = [];
+      orders.forEach(function (o) { o.items.forEach(function (i) { lines.push({ pid: i.pid, cat: i.cat || prodCat(i.pid), title: i.title, qty: i.qty, amount: i.qty * i.price }); }); });
+      var sum = function (arr, f) { return arr.reduce(function (s, x) { return s + f(x); }, 0); };
+      var label = $('#type option:selected').text(), range = (from || to) ? ' (' + (from || 'start') + ' to ' + (to || 'today') + ')' : '';
+      $('#title').text(label + range);
+
+      if (type === 'c_all') {
+        render(['ID', 'Name', 'Email', 'Mobile', 'Credit limit', 'Status'],
+          custs.sort(function (a, b) { return a._id.localeCompare(b._id); }).map(function (c) { return [c._id, c.name, c.email, c.mobile, c.credit_limit, c.status]; }));
+      } else if (type === 'c_top' || type === 'c_cash' || type === 'c_credit') {
+        var src = type === 'c_top' ? orders : orders.filter(function (o) { return o.payment === (type === 'c_cash' ? 'cash' : 'credit'); });
+        var g = group(src, function (o) { return o.customer; });
+        var rows = Object.keys(g).map(function (k) { return { id: k, n: g[k].length, t: sum(g[k], function (o) { return o.total; }) }; })
+          .sort(function (a, b) { return b.t - a.t; });
+        if (type === 'c_top') rows = rows.slice(0, 10);
+        render(['Rank', 'Customer ID', 'Name', 'Orders', 'Total purchase'],
+          rows.map(function (r, i) { return [i + 1, r.id, custName(r.id), r.n, money(r.t)]; }),
+          'Total: ' + money(sum(rows, function (r) { return r.t; })));
+      } else if (type === 'i_all' || type === 'i_high' || type === 'i_low') {
+        var list = prods.slice().sort(function (a, b) { return a._id.localeCompare(b._id); });
+        if (type === 'i_high') list = list.filter(function (p) { return Number(p.qty) > 100; });
+        if (type === 'i_low') list = list.filter(function (p) { return Number(p.qty) < 15; });
+        render(['ID', 'Category', 'Title', 'Quantity', 'Price'],
+          list.map(function (p) { return [p._id, catName(p.cat_id), p.title, p.qty, money(p.price)]; }));
+      } else if (type === 'i_cat') {
+        var gc = group(prods, function (p) { return p.cat_id; });
+        render(['Category', 'Items', 'Total quantity', 'Stock value'],
+          Object.keys(gc).sort().map(function (k) {
+            return [catName(k), gc[k].length, sum(gc[k], function (p) { return Number(p.qty); }), money(sum(gc[k], function (p) { return p.qty * p.price; }))];
+          }));
+      } else if (type === 's_all' || type === 's_cash' || type === 's_credit') {
+        var os = type === 's_all' ? orders : orders.filter(function (o) { return o.payment === (type === 's_cash' ? 'cash' : 'credit'); });
+        os.sort(function (a, b) { return a.date.localeCompare(b.date); });
+        render(['Order', 'Date', 'Customer', 'Payment', 'Total'],
+          os.map(function (o) { return [o.id, o.date, custName(o.customer), o.payment, money(o.total)]; }),
+          os.length + ' order(s), grand total ' + money(sum(os, function (o) { return o.total; })));
+      } else if (type === 's_cat') {
+        var gs = group(lines, function (l) { return l.cat; });
+        render(['Category', 'Units sold', 'Sales amount'],
+          Object.keys(gs).map(function (k) { return [catName(k), sum(gs[k], function (l) { return l.qty; }), money(sum(gs[k], function (l) { return l.amount; }))]; }),
+          'Grand total ' + money(sum(lines, function (l) { return l.amount; })));
+      } else if (type === 's_top' || type === 's_bottom') {
+        var sold = {};
+        prods.forEach(function (p) { sold[p._id] = { id: p._id, title: p.title, cat: p.cat_id, qty: 0, amt: 0 }; });
+        lines.forEach(function (l) { var s = sold[l.pid] || (sold[l.pid] = { id: l.pid, title: l.title, cat: l.cat, qty: 0, amt: 0 }); s.qty += l.qty; s.amt += l.amount; });
+        var arr = Object.keys(sold).map(function (k) { return sold[k]; })
+          .sort(function (a, b) { return type === 's_top' ? b.qty - a.qty : a.qty - b.qty; }).slice(0, 10);
+        render(['Rank', 'Item ID', 'Title', 'Category', 'Units sold', 'Sales amount'],
+          arr.map(function (s, i) { return [i + 1, s.id, s.title, catName(s.cat), s.qty, money(s.amt)]; }));
+      }
+      $('#msg').text('');
+    } catch (e) { $('#msg').attr('class', 'msg err').text('Could not load the data. Check the Firestore rules.'); }
+  }
+
+  $('#run').on('click', run);
+  $('#print').on('click', function () { window.print(); });
+</script>
+</body>
+</html>

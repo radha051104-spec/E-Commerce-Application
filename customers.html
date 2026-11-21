@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ShopEase - Customers</title>
+  <link rel="stylesheet" href="css/extra.css">
+</head>
+<body>
+<nav class="top"><b>ShopEase Admin</b>
+  <a href="admin.html">Dashboard</a><a href="products.html">Products</a><a href="customers.html">Customers</a><a href="reports.html">Reports</a><a href="index.html">Shop</a>
+  <span id="who"></span><button type="button" onclick="logout()">Logout</button></nav>
+<main class="wrap">
+  <div class="box">
+    <h2>Add customer</h2>
+    <div class="row">
+      <input id="a_name" placeholder="Name"><input id="a_email" placeholder="Email">
+      <input id="a_mob" placeholder="Mobile (10 digits)" maxlength="10">
+      <input id="a_lim" type="number" min="0" value="0" placeholder="Credit limit">
+      <button id="add" type="button">Add</button>
+    </div>
+  </div>
+  <div class="box">
+    <h2>Customers and credit limits</h2>
+    <p id="msg" class="msg"></p>
+    <table><tr><th>ID</th><th>Name</th><th>Email</th><th>Mobile</th><th>Credit limit</th><th>Status</th><th>Actions</th></tr><tbody id="rows"></tbody></table>
+  </div>
+</main>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="js/api.js"></script>
+<script src="js/auth.js"></script>
+<script>
+  var esc = API.esc, list = [];
+  function say(t, ok) { $('#msg').attr('class', 'msg ' + (ok ? 'ok' : 'err')).text(t); }
+
+  function draw() {
+    list.sort(function (a, b) { return a._id.localeCompare(b._id); });
+    $('#rows').html(list.map(function (c) {
+      var st = c.status || 'active';
+      return '<tr data-id="' + c._id + '"><td>' + c._id + '</td><td>' + esc(c.name) + '</td><td>' + esc(c.email) + '</td><td>' + esc(c.mobile) + '</td>' +
+        '<td><input class="lim" type="number" min="0" value="' + (c.credit_limit || 0) + '"></td>' +
+        '<td><span class="tag ' + st + '">' + st + '</span></td>' +
+        '<td><button class="save" type="button">Save limit</button>' +
+        '<button class="tog gray" type="button">' + (st === 'active' ? 'Deactivate' : 'Activate') + '</button>' +
+        '<button class="del danger" type="button">Delete</button></td></tr>';
+    }).join(''));
+  }
+  function find(id) { return list.filter(function (c) { return c._id === id; })[0]; }
+
+  async function load() {
+    try {
+      var all = await API.getAll('Customers');
+      list = all.filter(function (c) { return c.role !== 'admin'; });
+      draw();
+    } catch (e) { say('Could not load customers. Check the Firestore rules.'); }
+  }
+
+  $('#add').on('click', async function () {
+    var name = $('#a_name').val().trim(), email = $('#a_email').val().trim(), mob = $('#a_mob').val().trim(), lim = Number($('#a_lim').val());
+    if (!name) return say('Enter the name.');
+    if (!/^\S+@\S+\.\S+$/.test(email)) return say('Enter a valid email.');
+    if (!/^\d{10}$/.test(mob)) return say('Mobile must be 10 digits.');
+    if (!(lim >= 0)) return say('Credit limit cannot be negative.');
+    try {
+      var id = await API.nextId('Customers', 'CUST');
+      await API.save('Customers', id, { id: id, name: name, email: email, mobile: mob, credit_limit: lim, status: 'active', role: 'customer' });
+      say('Customer ' + id + ' added.', true); $('#a_name,#a_email,#a_mob').val(''); load();
+    } catch (e) { say('Could not add the customer.'); }
+  });
+
+  $('#rows').on('click', '.save', async function () {
+    var id = $(this).closest('tr').data('id'), n = Number($(this).closest('tr').find('.lim').val());
+    if (isNaN(n) || n < 0) return say('Credit limit must be 0 or more.');
+    try { await API.update('Customers', id, { credit_limit: n }); say('Credit limit of ' + id + ' set to ' + n + '.', true); }
+    catch (e) { say('Could not update.'); }
+  });
+  $('#rows').on('click', '.tog', async function () {
+    var id = $(this).closest('tr').data('id'), c = find(id), s = c.status === 'active' ? 'inactive' : 'active';
+    try { await API.update('Customers', id, { status: s }); c.status = s; draw(); say(id + ' is now ' + s + '.', true); }
+    catch (e) { say('Could not change the status.'); }
+  });
+  $('#rows').on('click', '.del', async function () {
+    var id = $(this).closest('tr').data('id');
+    if (!confirm('Delete customer ' + id + '? This cannot be undone.')) return;
+    try { await API.remove('Customers', id); list = list.filter(function (c) { return c._id !== id; }); draw(); say(id + ' deleted.', true); }
+    catch (e) { say('Could not delete.'); }
+  });
+
+  load();
+</script>
+</body>
+</html>

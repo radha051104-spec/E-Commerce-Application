@@ -1,0 +1,21 @@
+body{font-family:'Segoe UI',Arial,sans-serif;margin:0;background:#f4f6f8;color:#1b1f3b}
+.top{display:flex;gap:16px;align-items:center;background:#1b1f3b;color:#fff;padding:12px 20px;flex-wrap:wrap}
+.top a{color:#fff;text-decoration:none}.top a:hover{color:#ff8a7a}.top b{margin-right:auto;font-size:18px}
+.wrap{max-width:1100px;margin:20px auto;padding:0 14px}
+.box{background:#fff;border-radius:12px;padding:16px;margin-bottom:16px;box-shadow:0 2px 10px rgba(0,0,0,.08)}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{background:#1b1f3b;color:#fff;text-align:left;padding:8px}
+td{border-bottom:1px solid #e5e8ec;padding:6px 8px;vertical-align:middle}
+input,select{padding:7px;border:1px solid #ccd2d8;border-radius:6px;font-size:14px;max-width:100%}
+td input,td select{width:100%}
+button{padding:7px 14px;border:none;border-radius:6px;background:#1b1f3b;color:#fff;cursor:pointer;margin:2px}
+button:hover{background:#e74c3c}
+button.danger{background:#c0392b}button.gray{background:#6c757d}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+.msg{min-height:20px;font-size:14px}.ok{color:#1e8449}.err{color:#c0392b}
+.pager{display:flex;gap:6px;align-items:center;margin-top:12px;flex-wrap:wrap}
+.pager button.on{background:#e74c3c}
+.foot td{font-weight:bold;background:#f4f6f8}
+.tag{padding:2px 8px;border-radius:10px;font-size:12px}
+.tag.active{background:#d4efdf;color:#1e8449}.tag.inactive{background:#f5d5d1;color:#c0392b}
+@media print{.top,.noprint{display:none}}

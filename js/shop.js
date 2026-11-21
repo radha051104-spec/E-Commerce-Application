@@ -180,6 +180,7 @@ function openCheckout() {
     </div>
     <div id="pmFields"></div>
     <button class="btn full" id="payBtn" onclick="placeOrder()">Pay ${money(total)}</button>`;
+  $("c_name").value = SESSION.name || "";
   $("modal").classList.add("show");
   document.querySelectorAll("input[name=pm]").forEach(r => r.onchange = showFields);
   showFields();
@@ -212,24 +213,30 @@ async function placeOrder() {
   const total = cartTotal();
 
   if (m === "credit") {
-    const cust = await DB.get("Customers", "CUST001");
+    const cust = await DB.get("Customers", SESSION.uid);
     if (total > cust.credit_limit) {
       btn.disabled = false; btn.textContent = "Pay " + money(total);
       return toast("Credit limit exceeded (limit " + money(cust.credit_limit) + ")");
     }
-    await DB.update("Customers", "CUST001", { credit_limit: cust.credit_limit - total });
+    await DB.update("Customers", SESSION.uid, { credit_limit: cust.credit_limit - total });
   }
 
   const orderId = "ORD" + Date.now();
   const label = METHODS.find(x => x[0] === m)[1];
   await DB.create("orders", orderId, {
-    customer_id: "CUST001", customer_name: name, address: addr,
+    customer_id: SESSION.uid, customer_name: name, address: addr,
     items: JSON.stringify(cart), total, payment: label,
+    payment_type: m === "credit" ? "credit" : "cash",
     status: "Placed", date: new Date().toISOString()
   });
   for (const c of cart) {
     const p = products.find(x => String(x.id) === String(c.id));
     await DB.update("products", c.id, { qty: p.qty - c.qty });
+  }
+
+  // send the order email (does not block the order if it fails)
+  if (typeof Mailer !== "undefined") {
+    Mailer.sendOrder({ orderId: orderId, total: total, payment: label, items: cart });
   }
 
   $("modalBox").innerHTML = `<div class="ok">

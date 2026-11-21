@@ -9,7 +9,11 @@
 <body>
   <header class="nav">
     <h1 class="logo">Shop<span>Ease</span> Admin</h1>
+    <a href="customers.html" class="nav-link">Customers</a>
+    <a href="reports.html" class="nav-link">Reports</a>
     <a href="index.html" class="nav-link">Go to Shop</a>
+    <span id="who" style="color:#fff"></span>
+    <button class="btn" onclick="logout()">Logout</button>
     <button class="btn" id="seedBtn">Add sample products</button>
   </header>
 
@@ -27,17 +31,26 @@
       <button class="btn">Save</button>
     </form>
 
+    <div class="form" style="margin-top:12px">
+      <select id="fCat"></select>
+      <input id="fQ" placeholder="Search by Id or title">
+    </div>
+
     <table>
       <thead><tr><th>Id</th><th>Category</th><th>Title</th><th>Price</th><th>Qty</th><th>Status</th><th>Actions</th></tr></thead>
       <tbody id="rows"></tbody>
     </table>
+    <div class="pager" id="pager"></div>
   </main>
 
   <script src="js/config.js"></script>
   <script src="js/firestore.js"></script>
+  <script src="js/auth.js"></script>
   <script>
     const g = id => document.getElementById(id);
-    let editing = null;
+    const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    const PAGE_SIZE = 5;
+    let editing = null, all = [], page = 1;
 
     // ---------- SAMPLE PRODUCTS ----------
     // [id, category, title, description, price, qty, image]
@@ -80,20 +93,46 @@
       load();
     };
 
-    // ---------- READ ----------
-    async function load() {
-      const list = await DB.list("products");
-      list.sort((a, b) => a.id.localeCompare(b.id));
-      g("rows").innerHTML = list.map(p => `<tr>
-        <td>${p.id}</td><td>${p.cat_id}</td><td>${p.title}</td>
+    // ---------- READ (filter + search + pagination) ----------
+    function filtered() {
+      const cat = g("fCat").value, q = g("fQ").value.trim().toLowerCase();
+      return all.filter(p => (!cat || p.cat_id === cat) && (!q || (p.id + " " + p.title).toLowerCase().includes(q)));
+    }
+
+    function draw() {
+      const list = filtered();
+      const pages = Math.max(1, Math.ceil(list.length / PAGE_SIZE));
+      if (page > pages) page = pages;
+      const slice = list.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+      g("rows").innerHTML = slice.map(p => `<tr>
+        <td>${esc(p.id)}</td><td>${esc(p.cat_id)}</td><td>${esc(p.title)}</td>
         <td>₹${p.price}</td><td>${p.qty}</td>
         <td>${p.active === false ? "Inactive" : "Active"}</td>
         <td>
           <button onclick="edit('${p.id}')">Edit</button>
           <button onclick="toggle('${p.id}',${p.active !== false})">${p.active === false ? "Activate" : "Deactivate"}</button>
           <button onclick="del('${p.id}')">Delete</button>
-        </td></tr>`).join("") || `<tr><td colspan="7">No products yet. Click "Add sample products".</td></tr>`;
+        </td></tr>`).join("") || `<tr><td colspan="7">No products found.</td></tr>`;
+
+      let h = `<button ${page === 1 ? "disabled" : ""} onclick="go(${page - 1})">Prev</button>`;
+      for (let i = 1; i <= pages; i++) h += `<button class="${i === page ? "active" : ""}" onclick="go(${i})">${i}</button>`;
+      h += `<button ${page === pages ? "disabled" : ""} onclick="go(${page + 1})">Next</button> Page ${page} of ${pages} (${list.length} items)`;
+      g("pager").innerHTML = h;
     }
+    function go(p) { page = p; draw(); }
+
+    async function load() {
+      all = await DB.list("products");
+      all.sort((a, b) => a.id.localeCompare(b.id));
+      const keep = g("fCat").value;
+      const cats = [...new Set(all.map(p => p.cat_id))].sort();
+      g("fCat").innerHTML = `<option value="">All categories</option>` + cats.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join("");
+      g("fCat").value = cats.includes(keep) ? keep : "";
+      draw();
+    }
+    g("fCat").onchange = () => { page = 1; draw(); };
+    g("fQ").oninput = () => { page = 1; draw(); };
 
     // ---------- UPDATE ----------
     async function edit(id) {
@@ -120,14 +159,21 @@
     // ---------- CREATE / SAVE ----------
     g("form").onsubmit = async e => {
       e.preventDefault();
+      const price = Number(g("f_price").value), qty = Number(g("f_qty").value);
+      if (!(price > 0)) { g("msg").textContent = "Price must be more than 0."; return; }
+      if (!Number.isInteger(qty) || qty < 0) { g("msg").textContent = "Quantity must be a whole number, 0 or more."; return; }
       const data = {
         cat_id: g("f_cat").value, title: g("f_title").value, des: g("f_des").value,
-        price: Number(g("f_price").value), qty: Number(g("f_qty").value),
-        img: g("f_img").value || "https://picsum.photos/seed/default/400/400",
-        active: true
+        price, qty,
+        img: g("f_img").value || "https://picsum.photos/seed/default/400/400"
       };
-      if (editing) await DB.update("products", editing, data);
-      else await DB.create("products", g("f_id").value, data);
+      if (editing) {
+        await DB.update("products", editing, data);      // keeps the current Active/Inactive status
+      } else {
+        if (all.some(p => p.id === g("f_id").value)) { g("msg").textContent = "This Id already exists."; return; }
+        data.active = true;
+        await DB.create("products", g("f_id").value, data);
+      }
       editing = null; g("form").reset(); g("f_id").disabled = false;
       g("msg").textContent = "✅ Saved";
       load();
