@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ShopEase</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="nav">
+    <h1 class="logo">Shop<span>Ease</span></h1>
+    <input id="search" class="search" placeholder="Search products...">
+    <a href="admin.html" class="nav-link">Admin</a>
+    <button id="cartBtn" class="cart-btn">🛒 Cart (<span id="cartCount">0</span>)</button>
+  </header>
+
+  <nav class="cats" id="cats"></nav>
+  <main>
+    <div class="grid" id="grid"></div>
+    <div class="pager" id="pager"></div>
+  </main>
+
+  <aside class="drawer" id="drawer">
+    <h2>Your Cart <button id="closeCart">✕</button></h2>
+    <div id="cartItems"></div>
+    <p class="total">Total: <span id="total">₹0</span></p>
+    <button class="btn full" id="buy">Proceed to Pay</button>
+  </aside>
+
+  <div class="modal" id="modal"><div class="box" id="modalBox"></div></div>
+
+  <script src="js/config.js"></script>
+  <script src="js/firestore.js"></script>
+  <script src="js/shop.js"></script>
+</body>
+</html>

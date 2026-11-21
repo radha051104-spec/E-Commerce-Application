@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ShopEase Admin</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="nav">
+    <h1 class="logo">Shop<span>Ease</span> Admin</h1>
+    <a href="index.html" class="nav-link">Go to Shop</a>
+    <button class="btn" id="seedBtn">Add sample products</button>
+  </header>
+
+  <main class="admin">
+    <p id="msg" style="margin-bottom:12px;font-weight:600"></p>
+
+    <form id="form" class="form">
+      <input id="f_id" placeholder="Id (e.g. P021)" required>
+      <input id="f_cat" placeholder="Category" required>
+      <input id="f_title" placeholder="Title" required>
+      <input id="f_des" placeholder="Description">
+      <input id="f_price" type="number" placeholder="Price" required>
+      <input id="f_qty" type="number" placeholder="Qty" required>
+      <input id="f_img" placeholder="Image URL">
+      <button class="btn">Save</button>
+    </form>
+
+    <table>
+      <thead><tr><th>Id</th><th>Category</th><th>Title</th><th>Price</th><th>Qty</th><th>Status</th><th>Actions</th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </main>
+
+  <script src="js/config.js"></script>
+  <script src="js/firestore.js"></script>
+  <script>
+    const g = id => document.getElementById(id);
+    let editing = null;
+
+    // ---------- SAMPLE PRODUCTS ----------
+    // [id, category, title, description, price, qty, image]
+    const SAMPLE = [
+      ["P001","Fashion","Men's Running Shoes","Lightweight daily trainers",1999,50,"shoes"],
+      ["P002","Fashion","Women's Denim Jacket","Classic blue denim",1499,30,"jacket"],
+      ["P003","Fashion","Leather Wallet","Slim bifold wallet",599,200,"wallet"],
+      ["P004","Fashion","Cotton T-Shirt","Soft round-neck tee",399,150,"tshirt"],
+      ["P005","Fashion","Women's Handbag","Spacious everyday tote",1299,25,"handbag"],
+      ["P006","Fashion","Sunglasses","UV400 polarized",799,12,"sunglasses"],
+      ["P007","Beauty","Matte Lipstick","Long-lasting colour",399,120,"lipstick"],
+      ["P008","Beauty","Vitamin C Face Serum","Brightening serum 30ml",649,80,"serum"],
+      ["P009","Beauty","Hair Care Combo","Shampoo + conditioner",549,14,"haircare"],
+      ["P010","Beauty","Sunscreen SPF 50","Lightweight, no white cast",349,90,"sunscreen"],
+      ["P011","Beauty","Perfume 50ml","Fresh floral fragrance",1199,40,"perfume"],
+      ["P012","Beauty","Makeup Brush Set","10-piece soft brushes",699,35,"brushes"],
+      ["P013","Lifestyle","Insulated Water Bottle","1L, keeps cold 24h",799,10,"bottle"],
+      ["P014","Lifestyle","Yoga Mat","6mm non-slip",899,60,"yoga"],
+      ["P015","Lifestyle","Backpack","Water-resistant 25L",1099,45,"backpack"],
+      ["P016","Lifestyle","Scented Candle","Lavender, 40hr burn",449,110,"candle"],
+      ["P017","Electronics","Wireless Earbuds","Bluetooth 5.3, 24hr battery",1799,70,"earbuds"],
+      ["P018","Electronics","Smart Watch","Heart rate + sleep tracking",2999,20,"smartwatch"],
+      ["P019","Electronics","Power Bank 10000mAh","Fast charging",999,13,"powerbank"],
+      ["P020","Electronics","Bluetooth Speaker","Portable, waterproof",1499,55,"speaker"]
+    ];
+
+    g("seedBtn").onclick = async () => {
+      g("seedBtn").disabled = true;
+      let n = 0;
+      for (const [id, cat, title, des, price, qty, img] of SAMPLE) {
+        g("msg").textContent = `Adding products... ${++n}/${SAMPLE.length}`;
+        await DB.create("products", id, {
+          cat_id: cat, title, des, price, qty,
+          img: `https://picsum.photos/seed/${img}/400/400`,
+          active: true
+        });
+      }
+      g("msg").textContent = "✅ All sample products added!";
+      g("seedBtn").disabled = false;
+      load();
+    };
+
+    // ---------- READ ----------
+    async function load() {
+      const list = await DB.list("products");
+      list.sort((a, b) => a.id.localeCompare(b.id));
+      g("rows").innerHTML = list.map(p => `<tr>
+        <td>${p.id}</td><td>${p.cat_id}</td><td>${p.title}</td>
+        <td>₹${p.price}</td><td>${p.qty}</td>
+        <td>${p.active === false ? "Inactive" : "Active"}</td>
+        <td>
+          <button onclick="edit('${p.id}')">Edit</button>
+          <button onclick="toggle('${p.id}',${p.active !== false})">${p.active === false ? "Activate" : "Deactivate"}</button>
+          <button onclick="del('${p.id}')">Delete</button>
+        </td></tr>`).join("") || `<tr><td colspan="7">No products yet. Click "Add sample products".</td></tr>`;
+    }
+
+    // ---------- UPDATE ----------
+    async function edit(id) {
+      const p = await DB.get("products", id);
+      editing = id;
+      g("f_id").value = id; g("f_id").disabled = true;   // id cannot be changed
+      g("f_cat").value = p.cat_id; g("f_title").value = p.title; g("f_des").value = p.des;
+      g("f_price").value = p.price; g("f_qty").value = p.qty; g("f_img").value = p.img;
+      window.scrollTo(0, 0);
+    }
+    async function toggle(id, isActive) {
+      await DB.update("products", id, { active: !isActive });
+      load();
+    }
+
+    // ---------- DELETE ----------
+    async function del(id) {
+      if (confirm("Delete this product permanently? Yes/No")) {
+        await DB.remove("products", id);
+        load();
+      }
+    }
+
+    // ---------- CREATE / SAVE ----------
+    g("form").onsubmit = async e => {
+      e.preventDefault();
+      const data = {
+        cat_id: g("f_cat").value, title: g("f_title").value, des: g("f_des").value,
+        price: Number(g("f_price").value), qty: Number(g("f_qty").value),
+        img: g("f_img").value || "https://picsum.photos/seed/default/400/400",
+        active: true
+      };
+      if (editing) await DB.update("products", editing, data);
+      else await DB.create("products", g("f_id").value, data);
+      editing = null; g("form").reset(); g("f_id").disabled = false;
+      g("msg").textContent = "✅ Saved";
+      load();
+    };
+
+    load();
+  </script>
+</body>
+</html>
